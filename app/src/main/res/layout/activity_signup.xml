@@ -17,9 +17,11 @@
         android:layout_height="wrap_content"
         app:endIconMode="clear_text"
         android:hint="Name">
+
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/name_id"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -28,9 +30,11 @@
         app:endIconMode="clear_text"
         android:layout_marginTop="20dp"
         android:hint="Email id">
+
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/email_id"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -39,9 +43,11 @@
         android:layout_marginTop="20dp"
         app:endIconMode="clear_text"
         android:hint="Username">
+
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/username_id"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -50,7 +56,9 @@
         android:layout_marginTop="20dp"
         app:endIconMode="password_toggle"
         android:hint="Password">
+
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/password_id"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="textPassword" />
@@ -69,12 +77,13 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.button.MaterialButton
-        android:layout_marginTop="20dp"
+        android:id="@+id/signupbutton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Sign Up"
+        android:layout_marginTop="20dp"
+        android:backgroundTint="@color/black"
         android:clickable="true"
-        android:textColor="@color/white"
-        android:backgroundTint="@color/black"/>
+        android:text="Sign Up"
+        android:textColor="@color/white" />
 
 </LinearLayout>
