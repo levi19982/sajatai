@@ -71,7 +71,6 @@ class recording_activity : AppCompatActivity() {
                 for (ds in dataSnapshot.children) {
                     val key = ds.key
                     retrievedKey = key
-                    Toast.makeText(this@recording_activity, "User ID: $key", Toast.LENGTH_SHORT).show()
                 }
             }
 
@@ -175,11 +174,6 @@ class recording_activity : AppCompatActivity() {
             // Check if the file exists
             val filePath = getFilePathFromUri(uri)
             val file = File(filePath!!)
-            if (file.exists()) {
-                Toast.makeText(this, "File exists!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "File does not exist!", Toast.LENGTH_SHORT).show()
-            }
         }
     }
 
@@ -329,7 +323,6 @@ class recording_activity : AppCompatActivity() {
 
 
     private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String) {
-        Toast.makeText(this, retrievedKey, Toast.LENGTH_SHORT).show()
         val databaseReference = FirebaseDatabase.getInstance("https://sajatai-default-rtdb.europe-west1.firebasedatabase.app/").reference.child("users/"+retrievedKey+"/audioFiles")
         val recordingData = hashMapOf(
             "fileName" to recordingName,
@@ -359,7 +352,6 @@ class recording_activity : AppCompatActivity() {
     // Use this function wherever you need to toast the file path
     fun showToastWithFilePath(uri: Uri) {
         val filePath = getFilePathFromUri(uri)
-        Toast.makeText(this, "File Path: $filePath", Toast.LENGTH_LONG).show()
     }
 
     private fun decrypt(data: String, secret: String): String {

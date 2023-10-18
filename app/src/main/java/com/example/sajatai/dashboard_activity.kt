@@ -17,11 +17,18 @@ class dashboard_activity : AppCompatActivity() {
         userNameTextView.text = userName
 
         val hangfelvetel = findViewById<CardView>(R.id.hangfelvetel_id)
+        val hangfelvetelek_tablazat = findViewById<CardView>(R.id.hangfelvetelek)
 
         hangfelvetel.setOnClickListener{
             val torecording = Intent(this@dashboard_activity, recording_activity::class.java)
             torecording.putExtra("USEREMAIL", emailaddress)
             startActivity(torecording)
+        }
+
+        hangfelvetelek_tablazat.setOnClickListener{
+            val tohangfelvetelek = Intent(this@dashboard_activity, hangfelvetelek_activity::class.java)
+            tohangfelvetelek.putExtra("USEREMAIL", emailaddress)
+            startActivity(tohangfelvetelek)
         }
     }
 }
