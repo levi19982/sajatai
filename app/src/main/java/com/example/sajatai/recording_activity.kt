@@ -20,14 +20,21 @@ import android.provider.MediaStore
 import java.io.IOException
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Base64
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import java.io.File
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
 
 class recording_activity : AppCompatActivity() {
 
@@ -41,7 +48,7 @@ class recording_activity : AppCompatActivity() {
     private var isPaused = false
     private var pauseTime = 0L
     private lateinit var pauseResumeButton: Button
-    val storage = FirebaseStorage.getInstance()
+    private var retrievedKey: String? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_recording)
@@ -53,7 +60,29 @@ class recording_activity : AppCompatActivity() {
         val micimage = findViewById<ImageView>(R.id.mic)
         val playbackbutton = findViewById<Button>(R.id.playback)
         pauseResumeButton = findViewById<Button>(R.id.pauseResume)
-        val email = intent.getStringExtra("USEREMAIL")
+        val email = intent.getStringExtra("USEREMAIL") ?: "default@email.com"
+
+        val rootRef = FirebaseDatabase.getInstance("https://sajatai-default-rtdb.europe-west1.firebasedatabase.app/").reference
+        val query = rootRef.child("users").orderByChild("email").equalTo(email)
+
+        val valueEventListener = object : ValueEventListener {
+
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                for (ds in dataSnapshot.children) {
+                    val key = ds.key
+                    retrievedKey = key
+                    Toast.makeText(this@recording_activity, "User ID: $key", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {
+                Log.d("DEBUG", databaseError.message)
+            }
+        }
+
+        query.addListenerForSingleValueEvent(valueEventListener)
+
+
 
         pauseResumeButton.setOnClickListener {
             if (isPaused) {
@@ -172,8 +201,8 @@ class recording_activity : AppCompatActivity() {
 
         mediaRecorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
 
             recordingUri?.let { uri ->
                 val fileDescriptor = contentResolver.openFileDescriptor(uri, "w")?.fileDescriptor
@@ -275,11 +304,11 @@ class recording_activity : AppCompatActivity() {
 
         // Set the metadata for the audio file
         val metadata = StorageMetadata.Builder()
-            .setContentType("audio/mp3")
+            .setContentType("audio/mpeg")
             .build()
 
         // Define the path in Firebase Storage
-        val childReference = storageReference.child("profilePicture")
+        val childReference = storageReference.child(recordingName + ".mp3")
 
         // Begin the upload process
         childReference.putFile(uri, metadata)
@@ -296,6 +325,7 @@ class recording_activity : AppCompatActivity() {
                 it.printStackTrace() // This will print the full stack trace to your logcat.
             }
     }
+
 
 
     private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String) {
@@ -332,4 +362,12 @@ class recording_activity : AppCompatActivity() {
         Toast.makeText(this, "File Path: $filePath", Toast.LENGTH_LONG).show()
     }
 
+    private fun decrypt(data: String, secret: String): String {
+        val cipher = Cipher.getInstance("AES")
+        val secretKeySpec = SecretKeySpec(secret.toByteArray(), "AES")
+        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec)
+        val decodedValue = Base64.decode(data, Base64.DEFAULT)
+        val decryptedValue = cipher.doFinal(decodedValue)
+        return String(decryptedValue)
+    }
 }
