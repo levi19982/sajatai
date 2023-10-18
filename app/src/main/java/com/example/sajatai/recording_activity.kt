@@ -308,7 +308,7 @@ class recording_activity : AppCompatActivity() {
             .build()
 
         // Define the path in Firebase Storage
-        val childReference = storageReference.child(recordingName + ".mp3")
+        val childReference = storageReference.child("users/"+retrievedKey+"/audioFiles/"+recordingName+".mp3")
 
         // Begin the upload process
         childReference.putFile(uri, metadata)
@@ -329,11 +329,11 @@ class recording_activity : AppCompatActivity() {
 
 
     private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String) {
-        val databaseReference = FirebaseDatabase.getInstance().reference.child("Recordings")
+        Toast.makeText(this, retrievedKey, Toast.LENGTH_SHORT).show()
+        val databaseReference = FirebaseDatabase.getInstance("https://sajatai-default-rtdb.europe-west1.firebasedatabase.app/").reference.child("users/"+retrievedKey+"/audioFiles")
         val recordingData = hashMapOf(
-            "email" to email,
-            "name" to recordingName,
-            "url" to url
+            "fileName" to recordingName,
+            "fileURL" to url
         )
 
         databaseReference.push().setValue(recordingData)
