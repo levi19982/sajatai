@@ -12,6 +12,7 @@ class dashboard_activity : AppCompatActivity() {
         setContentView(R.layout.activity_dashboard)
 
         val userName = intent.getStringExtra("USERNAME")
+        val emailaddress = intent.getStringExtra("USEREMAIL")
         val userNameTextView = findViewById<TextView>(R.id.nev_id)
         userNameTextView.text = userName
 
@@ -19,6 +20,7 @@ class dashboard_activity : AppCompatActivity() {
 
         hangfelvetel.setOnClickListener{
             val torecording = Intent(this@dashboard_activity, recording_activity::class.java)
+            torecording.putExtra("USEREMAIL", emailaddress)
             startActivity(torecording)
         }
     }

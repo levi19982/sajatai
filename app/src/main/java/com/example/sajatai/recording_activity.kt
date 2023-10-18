@@ -21,8 +21,13 @@ import java.io.IOException
 import android.Manifest
 import android.content.pm.PackageManager
 import android.view.View
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
+import java.io.File
 
 class recording_activity : AppCompatActivity() {
 
@@ -36,6 +41,7 @@ class recording_activity : AppCompatActivity() {
     private var isPaused = false
     private var pauseTime = 0L
     private lateinit var pauseResumeButton: Button
+    val storage = FirebaseStorage.getInstance()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_recording)
@@ -47,6 +53,7 @@ class recording_activity : AppCompatActivity() {
         val micimage = findViewById<ImageView>(R.id.mic)
         val playbackbutton = findViewById<Button>(R.id.playback)
         pauseResumeButton = findViewById<Button>(R.id.pauseResume)
+        val email = intent.getStringExtra("USEREMAIL")
 
         pauseResumeButton.setOnClickListener {
             if (isPaused) {
@@ -119,7 +126,7 @@ class recording_activity : AppCompatActivity() {
         builder.setView(input)
 
         builder.setPositiveButton("OK", DialogInterface.OnClickListener { _, _ ->
-            val newFileName = input.text.toString() + ".3gp"  // Add the file extension
+            val newFileName = input.text.toString()   // Add the file extension
             renameRecording(newFileName)
         })
         builder.setNegativeButton("Cancel", DialogInterface.OnClickListener { dialog, _ -> dialog.cancel() })
@@ -133,22 +140,39 @@ class recording_activity : AppCompatActivity() {
 
         recordingUri?.let { uri ->
             contentResolver.update(uri, contentValues, null, null)
+            val email = intent.getStringExtra("USEREMAIL") ?: "default@email.com" // Get email, use a default if null
+            uploadRecordingToFirebase(uri, email, newFileName)
+
+            // Check if the file exists
+            val filePath = getFilePathFromUri(uri)
+            val file = File(filePath!!)
+            if (file.exists()) {
+                Toast.makeText(this, "File exists!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "File does not exist!", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
 
+
+
+
     private fun startRecording() {
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "my_audio_file.3gp")
-            put(MediaStore.MediaColumns.MIME_TYPE, "audio/3gpp")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "my_audio_file.mp3")
+            put(MediaStore.MediaColumns.MIME_TYPE, "audio/mpeg")
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC)
         }
 
         recordingUri = contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
 
+        // Show the file path as a toast
+        showToastWithFilePath(recordingUri!!)
+
         mediaRecorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
 
             recordingUri?.let { uri ->
@@ -166,6 +190,7 @@ class recording_activity : AppCompatActivity() {
             }
         }
     }
+
 
     private fun stopRecording() {
         mediaRecorder?.apply {
@@ -245,6 +270,66 @@ class recording_activity : AppCompatActivity() {
             override fun onFinish() {}
         }.start()
     }
+    private fun uploadRecordingToFirebase(uri: Uri, email: String, recordingName: String) {
+        val storageReference = FirebaseStorage.getInstance("gs://sajatai.appspot.com").reference
 
+        // Set the metadata for the audio file
+        val metadata = StorageMetadata.Builder()
+            .setContentType("audio/mp3")
+            .build()
+
+        // Define the path in Firebase Storage
+        val childReference = storageReference.child("profilePicture")
+
+        // Begin the upload process
+        childReference.putFile(uri, metadata)
+            .addOnSuccessListener { taskSnapshot ->
+                // After a successful upload, obtain the download URL
+                taskSnapshot.storage.downloadUrl.addOnSuccessListener { downloadUri ->
+                    // Use the downloadUri, e.g., save it to the Firebase Database
+                    saveRecordingMetadataToDatabase(email, recordingName, downloadUri.toString())
+                }
+            }
+            .addOnFailureListener {
+                // Handle the error
+                Toast.makeText(this, "Failed to upload recording: ${it.message}", Toast.LENGTH_LONG).show()
+                it.printStackTrace() // This will print the full stack trace to your logcat.
+            }
+    }
+
+
+    private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String) {
+        val databaseReference = FirebaseDatabase.getInstance().reference.child("Recordings")
+        val recordingData = hashMapOf(
+            "email" to email,
+            "name" to recordingName,
+            "url" to url
+        )
+
+        databaseReference.push().setValue(recordingData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Recording metadata saved successfully.", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                // Handle the error
+                Toast.makeText(this, "Failed to save recording metadata.", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun getFilePathFromUri(uri: Uri): String? {
+        // Get the file path using ContentResolver
+        val cursor = contentResolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)
+        val columnIndex = cursor?.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+        cursor?.moveToFirst()
+        val filePath = columnIndex?.let { cursor.getString(it) }
+        cursor?.close()
+        return filePath
+    }
+
+    // Use this function wherever you need to toast the file path
+    fun showToastWithFilePath(uri: Uri) {
+        val filePath = getFilePathFromUri(uri)
+        Toast.makeText(this, "File Path: $filePath", Toast.LENGTH_LONG).show()
+    }
 
 }

@@ -55,8 +55,11 @@ class loginpage_activity : AppCompatActivity() {
                             val user = snapshot.getValue<Map<String, Any>>()
                             val encryptedName = user?.get("name") as? String ?: "No Name"
                             val userName = decrypt(encryptedName, "s3cr3tK3yF0rA3S!")
-                            navigateToDashboard(userName)
+                            val userEmail = user?.get("email") as? String ?: "default@email.com"
+                            navigateToDashboard(userName, userEmail)
                         }
+
+
 
                         override fun onCancelled(error: DatabaseError) {
                             // Handle error
@@ -91,9 +94,10 @@ class loginpage_activity : AppCompatActivity() {
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
-    private fun navigateToDashboard(userName: String) {
+    private fun navigateToDashboard(userName: String, userEmail: String) {
         val intent = Intent(this@loginpage_activity, dashboard_activity::class.java)
         intent.putExtra("USERNAME", userName)
+        intent.putExtra("USEREMAIL", userEmail)
         startActivity(intent)
     }
 
