@@ -1,5 +1,7 @@
 package com.example.sajatai
 
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,8 +25,27 @@ class RecordingsAdapter(private val recordings: List<Recording>) : RecyclerView.
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val recording = recordings[position]
         holder.recordingName.text = recording.name
-        // You can also set onClickListeners for the buttons here
+        holder.playButton.setOnClickListener {
+            playAudio(recording.fileUrl)
+        }
     }
+
+    private fun playAudio(url: String) {
+        val mediaPlayer = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .build()
+            )
+            setDataSource(url)
+            setOnPreparedListener { start() }
+            prepareAsync()
+        }
+    }
+
+
+
 
     override fun getItemCount(): Int = recordings.size
 }
