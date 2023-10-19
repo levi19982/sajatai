@@ -2,6 +2,7 @@ package com.example.sajatai
 
 import android.app.AlertDialog
 import android.content.ContentValues
+import com.arthenica.mobileffmpeg.FFmpeg
 import android.content.DialogInterface
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -9,6 +10,7 @@ import android.os.SystemClock
 import android.text.InputType
 import android.widget.Button
 import android.widget.EditText
+import java.util.concurrent.TimeUnit
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -35,6 +37,13 @@ import com.google.firebase.storage.StorageMetadata
 import java.io.File
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okio.Okio
+import okio.buffer
+import okio.sink
+import org.json.JSONObject
+
 
 class recording_activity : AppCompatActivity() {
 
@@ -304,30 +313,46 @@ class recording_activity : AppCompatActivity() {
         // Define the path in Firebase Storage
         val childReference = storageReference.child("users/"+retrievedKey+"/audioFiles/"+recordingName+".mp3")
 
-        // Begin the upload process
-        childReference.putFile(uri, metadata)
-            .addOnSuccessListener { taskSnapshot ->
-                // After a successful upload, obtain the download URL
-                taskSnapshot.storage.downloadUrl.addOnSuccessListener { downloadUri ->
-                    // Use the downloadUri, e.g., save it to the Firebase Database
-                    saveRecordingMetadataToDatabase(email, recordingName, downloadUri.toString())
+        val originalPath = getFilePathFromUri(uri)
+        val convertedPath = "$originalPath.mp3"
+
+        // Convert and upload
+        if (convertToMp3(originalPath!!, convertedPath)) {
+            val convertedUri = Uri.fromFile(File(convertedPath))
+            childReference.putFile(convertedUri, metadata)
+                .addOnSuccessListener { taskSnapshot ->
+                    // After a successful upload, obtain the download URL
+                    taskSnapshot.storage.downloadUrl.addOnSuccessListener { downloadUri ->
+                        val audioFilePath = downloadUri.toString()
+                        transcribeAudio(audioFilePath) { transcription ->
+                            // Use the downloadUri and transcription, e.g., save it to the Firebase Database
+                            saveRecordingMetadataToDatabase(email, recordingName, audioFilePath, transcription)
+                        }
+                    }
                 }
-            }
-            .addOnFailureListener {
-                // Handle the error
-                Toast.makeText(this, "Failed to upload recording: ${it.message}", Toast.LENGTH_LONG).show()
-                it.printStackTrace() // This will print the full stack trace to your logcat.
-            }
+                .addOnFailureListener {
+                    // Handle the error
+                    Toast.makeText(this, "Failed to upload recording: ${it.message}", Toast.LENGTH_LONG).show()
+                    it.printStackTrace() // This will print the full stack trace to your logcat.
+                }
+        } else {
+            // Handle the conversion error here, if needed
+            Toast.makeText(this, "Failed to convert the audio file", Toast.LENGTH_LONG).show()
+        }
     }
 
 
 
-    private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String) {
+
+    private fun saveRecordingMetadataToDatabase(email: String, recordingName: String, url: String, transcription: String?) {
         val databaseReference = FirebaseDatabase.getInstance("https://sajatai-default-rtdb.europe-west1.firebasedatabase.app/").reference.child("users/"+retrievedKey+"/audioFiles")
-        val recordingData = hashMapOf(
+        val recordingData = hashMapOf<String, Any>(
             "fileName" to recordingName,
-            "fileURL" to url
+            "fileURL" to url,
+            "transcription" to (transcription ?: "Transcription not available")
         )
+        Log.d("DatabaseSave", "Saving: $recordingData")
+
 
         databaseReference.push().setValue(recordingData)
             .addOnSuccessListener {
@@ -362,4 +387,75 @@ class recording_activity : AppCompatActivity() {
         val decryptedValue = cipher.doFinal(decodedValue)
         return String(decryptedValue)
     }
+
+    fun transcribeAudio(audioUrl: String, callback: (String?) -> Unit) {
+        val API_URL = "https://api.openai.com/v1/audio/transcriptions"
+        val API_KEY = ""
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.MINUTES)
+            .writeTimeout(10, TimeUnit.MINUTES)
+            .readTimeout(10, TimeUnit.MINUTES)
+            .build()
+
+        // Download the audio file from Firebase Storage to a local temp file
+        val requestDownload = Request.Builder()
+            .url(audioUrl)
+            .build()
+
+        client.newCall(requestDownload).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val tempFile = File.createTempFile("temp_audio", ".mp3", cacheDir)
+                val sink = tempFile.sink().buffer()
+                sink.writeAll(response.body!!.source())
+                sink.close()
+
+                // Now, send this local file to the transcription API
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("file", "audio.mp3", RequestBody.create("audio/mpeg".toMediaTypeOrNull(), tempFile))
+                    .addFormDataPart("model", "whisper-1")
+                    .build()
+
+                val requestTranscribe = Request.Builder()
+                    .url(API_URL)
+                    .header("Authorization", "Bearer $API_KEY")
+                    .post(requestBody)
+                    .build()
+
+                client.newCall(requestTranscribe).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        tempFile.delete()
+                        Log.e("TranscriptionError", "Network error: ${e.message}")
+                        callback(null)
+                    }
+
+                    override fun onResponse(call: Call, responseTranscribe: Response) {
+                        if (responseTranscribe.isSuccessful) {
+                            val jsonResponse = responseTranscribe.body?.string()
+                            Log.d("TranscriptionSuccess", "Response: $jsonResponse")
+                            val jsonObject = JSONObject(jsonResponse)
+                            val transcription = jsonObject.optString("text")
+                            callback(transcription)
+                        } else {
+                            Log.e("TranscriptionError", "Response error: ${responseTranscribe.code} - ${responseTranscribe.body?.string()}")
+                            // Print the error response for debugging purposes
+                                callback(null)
+                        }
+                        tempFile.delete()
+                    }
+                })
+            }
+        })
+    }
+
+    private fun convertToMp3(inputPath: String, outputPath: String): Boolean {
+        val returnCode = FFmpeg.execute("-i $inputPath $outputPath")
+        return returnCode == 0
+    }
+
 }
